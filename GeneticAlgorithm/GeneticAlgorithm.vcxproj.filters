@@ -21,9 +21,21 @@
     <ClCompile Include="GeneticAlgorithmTSP.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="SimulatedAnnealing.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="AntColony.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GeneticAlgorithmTSP.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="SimulatedAnnealing.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="AntColony.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
   </ItemGroup>

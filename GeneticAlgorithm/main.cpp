@@ -1,37 +1,51 @@
 ﻿#include <iostream>
-#include <vector>
-#include <cstdlib>
-#include <ctime>
-#include <algorithm>
+#include <random>
 #include "GeneticAlgorithmTSP.h"
+#include "SimulatedAnnealing.h"
+#include "AntColony.h"
 
-using namespace ga;
 
-int main()
+// Генерация случайной симметричной матрицы
+std::vector<std::vector<double>> generateRandomDistanceMatrix(int size) {
+    std::vector<std::vector<double>> matrix(size, std::vector<double>(size, 0.0));
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dist(10.0, 1000.0);
+
+    for (int i = 0; i < size; ++i) {
+        for (int j = i + 1; j < size; ++j) {
+            double distance = dist(gen);
+            matrix[i][j] = matrix[j][i] = distance;
+        }
+    }
+
+    return matrix;
+}
+
+
+int main() 
 {
     setlocale(LC_ALL, "Russian");
     srand(static_cast<unsigned>(time(0)));
 
-    // Инициализируем матрицу расстояний случайными значениями
-    for (int i = 0; i != NUM_CITIES; ++i)
-    {
-        for (int j = 0; j != NUM_CITIES; ++j)
-        {
-            if (i == j)
-                distanceMatrix[i][j] = INT_MAX;
-            else
-                distanceMatrix[i][j] = rand() % 100 + 1; // Случайное расстояние от 1 до 100
-        }
-    }
+    std::vector<std::vector<double>> distanceMatrix = generateRandomDistanceMatrix(200);
 
-    Individual bestSolution = geneticAlgorithm();
+    std::cout << "Генетический алгоритм:\n";
+    GeneticAlgorithm ga(distanceMatrix);
+    std::vector<int> bestSolution = ga.solve();
+    std::cout << "Лучший найденный путь: " << ga.calculatePathLength(bestSolution) << std::endl;
 
-    std::cout << "Лучший найденный путь: ";
-    for (int city : bestSolution.path)
-    {
-        std::cout << city << " ";
-    }
-    std::cout << std::endl << "Длина пути: " << calculatePathLength(bestSolution.path) << std::endl;
+    std::cout << "\nАлгоритм имитации отжига:\n";
+    SimulatedAnnealing sa(distanceMatrix);
+    std::vector<int> bestPath = sa.solve();
+    std::cout << "Лучший найденный путь: " << sa.calculatePathLength(bestPath) << std::endl;
+
+    std::cout << "\nМуравьиный алгоритм:\n";
+    AntColony aco(distanceMatrix);
+    std::vector<int> bestPathACO = aco.solve();
+
+
+    std::cout << "Лучший найденный путь: " << aco.calculatePathLength(bestPathACO) << std::endl;
 
     return 0;
 }

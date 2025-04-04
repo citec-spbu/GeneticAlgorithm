@@ -1,206 +1,210 @@
-﻿#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <cmath>
-#include <ctime>
-#include <cstdlib>
-#include <unordered_map>
+﻿#include "GeneticAlgorithmTSP.h"
 
-#include "GeneticAlgorithmTSP.h"
+GeneticAlgorithm::GeneticAlgorithm(const std::vector<std::vector<double>>& distanceMatrix,
+    int populationSize, int generations,
+    double mutationRate, double crossoverRate, int tournamentSize): 
+    distanceMatrix(distanceMatrix),
+    numCities(distanceMatrix.size()),
+    populationSize(populationSize),
+    generations(generations),
+    mutationRate(mutationRate),
+    crossoverRate(crossoverRate),
+    tournamentSize(tournamentSize) {}
 
-namespace ga {
+// Инициализация начальной популяции, состоящей из populationSize хромосом
+std::vector<GeneticAlgorithm::Individual> GeneticAlgorithm::initializePopulation() 
+{
+    std::vector<Individual> population;
+    std::vector<int> initialPath(numCities);
 
-    std::vector<std::vector<double>> distanceMatrix(NUM_CITIES, std::vector<double>(NUM_CITIES));
-
-    // Вывод матрицы в консоль
-    void printMatrix(std::vector<std::vector<double>> matrix)
+    for (int i = 0; i < numCities; ++i) 
     {
-        for (int i = 0; i != matrix.size(); ++i)
-        {
-            for (int j = 0; j != matrix[0].size(); ++j)
-            {
+        initialPath[i] = i;
+    }
 
-                std::cout << (matrix[i][j]) << " ";
-            }
-            std::cout << std::endl;
+    // Перестановки случайным образом
+    for (int i = 0; i < populationSize; ++i) 
+    {
+        std::random_shuffle(initialPath.begin(), initialPath.end());
+        Individual indiv = { initialPath, 1.0 / calculatePathLength(initialPath) };
+        population.push_back(indiv);
+    }
+
+    return population;
+}
+
+// Вычисление длины маршрута
+double GeneticAlgorithm::calculatePathLength(const std::vector<int>& path) 
+{
+    double length = 0;
+    for (int i = 0; i != path.size() - 1; ++i) 
+    {
+        length += distanceMatrix[path[i]][path[i + 1]];
+    }
+    length += distanceMatrix[path.back()][path[0]]; 
+    return length;
+}
+
+// Оценка приспособленности для каждого индивидуума в поколении
+void GeneticAlgorithm::evaluateFitness(std::vector<Individual>& population) 
+{
+    for (auto& indiv : population)
+        indiv.fitness = 1.0 / calculatePathLength(indiv.path); // Значение целевой функции обратно пропорционально длине маршрута
+}
+
+// Поиск лучшей особи в популяции
+GeneticAlgorithm::Individual GeneticAlgorithm::bestIndividual(const std::vector<Individual>& population) 
+{
+    Individual best = population[0];
+    for (int i = 1; i != population.size(); ++i) 
+    {
+        if (population[i].fitness > best.fitness)
+            best = population[i];
+    }
+    return best;
+}
+
+// Турнирная селекция
+std::vector<GeneticAlgorithm::Individual> GeneticAlgorithm::selection(const std::vector<Individual>& population) 
+{
+    std::vector<Individual> selected;
+    for (int i = 0; i != populationSize; ++i) 
+    {
+        std::vector<Individual> tournament;
+
+        // Случайным образом выбираем участников турнира
+        for (int j = 0; j != tournamentSize; ++j) {
+            int index = rand() % populationSize;
+            tournament.push_back(population[index]);
+        }
+
+        // Находим лучшего индивидуума в турнире
+        Individual best = *std::max_element(tournament.begin(), tournament.end(), [](const Individual& a, const Individual& b) {
+            return a.fitness < b.fitness;
+            });
+
+        selected.push_back(best); // Добавляем лучшего из турнира в список отобранных
+    }
+    return selected;
+}
+
+// Скрещивание OX-методом
+std::vector<GeneticAlgorithm::Individual> GeneticAlgorithm::crossover(const Individual& parent1, const Individual& parent2) 
+{
+    std::vector<Individual> children;
+    if ((double)rand() / RAND_MAX < crossoverRate) { // Скрещивание происходит с вероятностью crossoverRate
+        // Выбираем 2 точки разбиения
+        int point1 = rand() % numCities;
+        int point2 = rand() % numCities;
+        if (point1 > point2) std::swap(point1, point2);
+
+        // Создаем потомков
+        children.push_back(crossoverHelper(parent1, parent2, point1, point2));
+        // Меняем родителей местами 
+        children.push_back(crossoverHelper(parent2, parent1, point1, point2));
+    }
+    else {
+        children.push_back(parent1);
+        children.push_back(parent2);
+    }
+    return children;
+}
+
+// Функция, содержащая основную логику скрещивания
+GeneticAlgorithm::Individual GeneticAlgorithm::crossoverHelper(const Individual& parent1, const Individual& parent2, int point1, int point2)
+{
+    std::vector<int> child(numCities, -1);
+
+    // Копируем сегмент из parent1
+    std::unordered_set<int> segment;
+    for (int i = point1; i <= point2; ++i) 
+    {
+        child[i] = parent1.path[i];
+        segment.insert(parent1.path[i]);
+    }
+
+    // Заполняем остальное из parent2, пропуская дубликаты
+    int pos = (point2 + 1) % numCities;
+    for (int i = 0; i < numCities; ++i) 
+    {
+        int city = parent2.path[(point2 + 1 + i) % numCities];
+        if (segment.count(city) == 0) 
+        {
+            child[pos] = city;
+            pos = (pos + 1) % numCities;
         }
     }
 
-    // Вычисление длины маршрута
-    double calculatePathLength(const std::vector<int>& path)
+    return { child, -1 };
+}
+
+// Мутация путем инверсии подпоследовательности
+void GeneticAlgorithm::mutate(Individual& indiv) 
+{
+    if ((double)rand() / RAND_MAX < mutationRate) // Мутация происходит с вероятностью mutationRate
     {
-        double length = 0;
-        for (int i = 0; i != path.size() - 1; ++i)
-        {
-            length += distanceMatrix[path[i]][path[i + 1]];
-        }
-        length += distanceMatrix[path.back()][path[0]];
-        return length;
+        int i = rand() % numCities;
+        int j = rand() % numCities;
+        if (i > j) std::swap(i, j);
+        std::reverse(indiv.path.begin() + i, indiv.path.begin() + j + 1);
     }
+}
 
-    // Вычисление целевой функции 
-    void evaluateFitness(std::vector<Individual>& population)
+// Вывод отладочной информации
+void GeneticAlgorithm::printBestSolution(int generation, const Individual& best) 
+{
+    std::cout << "Поколение " << generation << " Лучший путь: " << 1.0 / best.fitness << std::endl;
+}
+
+// Запуск генетического алгоритма
+std::vector<int> GeneticAlgorithm::solve() 
+{
+    std::vector<Individual> population = initializePopulation(); // Задаем начальную популяцию 
+    Individual best = bestIndividual(population);
+    printBestSolution(0, best);
+
+    int noImprovementGenerations = 0; // Счетчик поколений без улучшения
+    for (int generation = 1; generation <= generations; ++generation) 
     {
-        for (auto& indiv : population) {
-            indiv.fitness = 1.0 / calculatePathLength(indiv.path); // Значение целевой функции обратно пропорционально длине маршрута
-        }
-    }
+        std::vector<Individual> selected = selection(population); // Селекция
 
-    // Поиск лучшей особи в популяции
-    Individual bestIndividual(const std::vector<Individual>& population)
-    {
-        Individual best = population[0];
-        for (int i = 1; i != population.size(); ++i)
+        // Создание новой популяции
+        std::vector<Individual> newPopulation;
+        for (int i = 0; i < selected.size() - 1; i += 2) 
         {
-            if (population[i].fitness > best.fitness)
-                best = population[i];
-        }
-        return best;
-    }
-
-    // Инициализация начальной популяции, состоящей из POPULATION_SIZE хромосом
-    std::vector<Individual> initializePopulation()
-    {
-        std::vector<Individual> population;
-        std::vector<int> initialPath(NUM_CITIES);
-        for (int i = 0; i < NUM_CITIES; ++i)
-        {
-            initialPath[i] = i;
-        }
-
-        // Перестановки случайным образом
-        for (int i = 0; i < POPULATION_SIZE; ++i)
-        {
-            std::random_shuffle(initialPath.begin(), initialPath.end());
-            Individual indiv = { initialPath, 1.0 / calculatePathLength(initialPath) };
-            population.push_back(indiv);
+            std::vector<Individual> children = crossover(selected[i], selected[i + 1]); // Попарное скрещивание отобранных особей
+            mutate(children[0]);
+            mutate(children[1]); // Мутации
+            newPopulation.push_back(children[0]);
+            newPopulation.push_back(children[1]); // Добавление полученных потомков в новую популяцию
         }
 
-        return population;
-    }
-
-    // Селекция турнирным методом
-    std::vector<Individual> selection(const std::vector<Individual>& population)
-    {
-        std::vector<Individual> selected;
-
-        for (int i = 0; i != POPULATION_SIZE; ++i)
+        if (populationSize % 2 == 1) // Если размер популяции нечетный, то добавить еще одного потомка в новую популяцию
         {
-            std::vector<Individual> tournament;
-
-            // Случайным образом выбираем участников турнира
-            for (int j = 0; j != TOURNAMENT_SIZE; ++j) {
-                int index = rand() % POPULATION_SIZE;
-                tournament.push_back(population[index]);
-            }
-
-            // Находим лучшего индивидуума в турнире
-            Individual best = *std::max_element(tournament.begin(), tournament.end(), [](const Individual& a, const Individual& b) {
-                return a.fitness < b.fitness; // Сравниваем значение целевой функции
-                });
-
-            selected.push_back(best); // Добавляем лучшего из турнира в список отобранных
+            std::vector<Individual> children = crossover(selected[0], selected.back());
+            mutate(children[0]);
+            newPopulation.push_back(children[0]);
         }
 
-        return selected;
-    }
+        evaluateFitness(newPopulation); // Оценка приспособленности особей нового поколения
 
-    // Скрещивание PMX-методом
-    std::vector<Individual> crossover(const Individual& parent1, const Individual& parent2)
-    {
-        if ((double)rand() / RAND_MAX < CROSSOVER_RATE) // Скрещивание происходит с вероятностью CROSSOVER_RATE
+        population = newPopulation; // Обновляем популяцию
+        Individual newBest = bestIndividual(population); // Находим лучшую особь в новом поколении
+
+        if (newBest.fitness > best.fitness) 
         {
-            // Выбираем 2 точки разбиения 
-            int point1 = rand() % NUM_CITIES;
-            int point2 = rand() % NUM_CITIES;
-            if (point1 > point2)
-                std::swap(point1, point2);
-
-            std::vector<Individual> children;
-            children.push_back(crossoverHelper(parent1, parent2, point1, point2)); // Находим первого потомка
-            children.push_back(crossoverHelper(parent2, parent1, point1, point2)); // Находим второго потомка, меняя родителей местами
-            return children;
+            best = newBest;
+            noImprovementGenerations = 0;
         }
         else
-            return { parent1, parent2 };
-    }
-
-    // Функция, содержащая основную логику скрещивания
-    Individual crossoverHelper(const Individual& parent1, const Individual& parent2, int point1, int point2)
-    {
-        std::unordered_map<int, int> positions;
-        std::vector<int> child(parent2.path); // Инициализируем потомка значениями 2-го родителя
-
-        // Задаем хеш-таблицу, где ключом является элемент, а значение - его позиция во 2-м родителе
-        for (int i = 0; i != child.size(); ++i)
         {
-            positions[child[i]] = i;
+            ++noImprovementGenerations;
         }
 
-        // Переносим узлы 1-го родителя из центра разбиения в соответствующие позиции в потомке
-        for (int i = point1; i != point2; ++i)
-        {
-            int cur = parent1.path[i];
-            int pos = positions[cur];
+        printBestSolution(generation, best); // Выводим решение для текущего поколения
 
-            positions[cur] = i;
-            positions[child[i]] = pos; // Обновляем позиции в хеш-таблице
-
-            std::swap(child[i], child[pos]);
-        }
-
-        return { child, -1 };
+        if (noImprovementGenerations >= 100) // Если 100 поколений не было улучшений, то алгоритм завершает работу
+            break;
     }
-
-    // Мутация путем перестановки 2-х случайных узлов 
-    void mutate(Individual& indiv) {
-        if ((double)rand() / RAND_MAX < MUTATION_RATE) // Мутация с вероятностью MUTATION_RATE
-        {
-            int i = rand() % NUM_CITIES;
-            int j = rand() % NUM_CITIES;
-            std::swap(indiv.path[i], indiv.path[j]);
-        }
-    }
-
-    // Запуск генетического алгоритма
-    Individual geneticAlgorithm()
-    {
-
-        srand(static_cast<unsigned>(time(0)));
-        std::vector<Individual> population = initializePopulation(); // Задаем начальную популяцию 
-        auto best = bestIndividual(population);
-        std::cout << "Поколение " << 0 << " Лучший путь: " << 1.0 / best.fitness << std::endl;
-
-        for (int generation = 0; generation != GENERATIONS; ++generation)
-        {
-            std::vector<Individual> selected = selection(population); // Селекция 
-
-
-            // Создание новой популяции
-            std::vector<Individual> newPopulation;
-            for (int i = 0; i + 1 < selected.size(); i += 2)
-            {
-                std::vector<Individual> children = crossover(selected[i], selected[i + 1]); // Попарное скрещивание отобранных особей
-                mutate(children[0]);
-                mutate(children[1]); // Мутации
-                newPopulation.push_back(children[0]);
-                newPopulation.push_back(children[1]); // Добавление полученных потомков в новую популяцию
-            }
-            if (POPULATION_SIZE % 2 == 1) // Если размер популяции нечетный, то добавить еще одного потомка в новую популяцию
-            {
-                std::vector<Individual> children = crossover(selected[0], selected.back());
-                mutate(children[0]);
-                newPopulation.push_back(children[0]);
-            }
-
-            evaluateFitness(newPopulation); // Оценка приспособленности особей нового поколения
-
-            // Выводми номер поколения и лучший маршрут в этом поколении, переходим к генерации следующего поколению
-            population = newPopulation;
-            best = bestIndividual(population);
-            std::cout << "Поколение " << generation + 1 << " Лучший путь: " << 1.0 / best.fitness << std::endl;
-        }
-        return best;
-    }
-
-} // namespace tsp
+    return best.path;
+}

@@ -1,37 +1,47 @@
-﻿#ifndef GENETICALGORITHMTSP_H
-#define GENETICALGORITHMTSP_H
+﻿#ifndef GENETIC_ALGORITHM_H
+#define GENETIC_ALGORITHM_H
 
+#include <iostream>
 #include <vector>
+#include <algorithm>
+#include <cmath>
+#include <ctime>
+#include <cstdlib>
+#include <unordered_map>
+#include <unordered_set>
+#include <random>
 
-namespace ga
-{
+class GeneticAlgorithm {
+public:
+    GeneticAlgorithm(const std::vector<std::vector<double>>& distanceMatrix, int populationSize = 500, 
+                     int generations = 1000, double mutationRate = 0.2, double crossoverRate = 0.95, int tournamentSize = 7);
+    std::vector<int> solve();
+    double calculatePathLength(const std::vector<int>& path);
 
-    const int NUM_CITIES = 50;             // Количество городов
-    const int POPULATION_SIZE = 800;       // Размер популяции
-    const int GENERATIONS = 70;            // Количество поколений
-    const double MUTATION_RATE = 0.35;     // Вероятность мутации
-    const double CROSSOVER_RATE = 0.95;    // Вероятность скрещивания
-    const int TOURNAMENT_SIZE = 8;         // Размер турнира
+private:
+    int numCities;               // Количество городов
+    int populationSize;          // Размер популяции
+    int generations;             // Количество поколений
+    double mutationRate;         // Вероятность мутации
+    double crossoverRate;        // Вероятность скрещивания
+    int tournamentSize;          // Размер турнира
 
-    struct Individual
-    {
-        std::vector<int> path;             // Путь обхода городов
-        double fitness;                    // Приспособленность (целевая функция), обратно пропорциональная длине маршрута
+    std::vector<std::vector<double>> distanceMatrix; // Матрица расстояний
+
+    struct Individual {
+        std::vector<int> path;    // Путь обхода городов
+        double fitness;           // Приспособленность (целевая функция), обратно пропорциональная длине маршрута
     };
 
-    extern std::vector<std::vector<double>> distanceMatrix;
-
-    void printMatrix(std::vector<std::vector<double>> matrix);
-    Individual bestIndividual(const std::vector<Individual>& population);
-    double calculatePathLength(const std::vector<int>& path);
     std::vector<Individual> initializePopulation();
     void evaluateFitness(std::vector<Individual>& population);
+    Individual bestIndividual(const std::vector<Individual>& population);
     std::vector<Individual> selection(const std::vector<Individual>& population);
     std::vector<Individual> crossover(const Individual& parent1, const Individual& parent2);
     Individual crossoverHelper(const Individual& parent1, const Individual& parent2, int point1, int point2);
     void mutate(Individual& indiv);
-    Individual geneticAlgorithm();
+    void printBestSolution(int generation, const Individual& best);
 
-} // namespace ga
+};
 
-#endif 
+#endif
