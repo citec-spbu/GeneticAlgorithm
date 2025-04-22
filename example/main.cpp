@@ -4,7 +4,6 @@
 #include "SimulatedAnnealing.h"
 #include "AntColony.h"
 
-
 // Генерация случайной симметричной матрицы
 std::vector<std::vector<double>> generateRandomDistanceMatrix(int size) {
     std::vector<std::vector<double>> matrix(size, std::vector<double>(size, 0.0));
